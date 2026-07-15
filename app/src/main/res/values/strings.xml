@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">ExpressIt</string>
+
+    <!-- Home -->
+    <string name="today">Today</string>
+    <string name="new_entry">New entry</string>
+    <string name="empty_day_title">A quiet page</string>
+    <string name="empty_day_body">Nothing written for this day yet.\nTap the button below and just speak.</string>
+    <string name="entry_count_one">1 entry</string>
+    <string name="entry_count_many">%d entries</string>
+    <string name="delete_entry">Delete entry</string>
+    <string name="delete_dialog_title">Delete this entry?</string>
+    <string name="delete_dialog_body">This entry will be removed from your journal. This can\'t be undone.</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Entry -->
+    <string name="tap_to_speak">Tap to speak</string>
+    <string name="listening">Listening…</string>
+    <string name="tap_to_stop">Tap to stop</string>
+    <string name="transcript_placeholder">Your words will appear here.</string>
+    <string name="save_entry">Save entry</string>
+    <string name="back">Back</string>
+    <string name="mic_permission_needed">ExpressIt needs microphone access to hear you. You can grant it in Settings.</string>
+    <string name="speech_unavailable">Speech recognition isn\'t available on this device.</string>
+    <string name="speech_error_generic">Couldn\'t hear that. Tap the microphone to try again.</string>
+    <string name="editing_hint">Tap the text to make small edits, or keep speaking to add more.</string>
+</resources>
