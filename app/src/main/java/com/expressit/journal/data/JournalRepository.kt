@@ -29,16 +29,26 @@ class JournalRepository(private val dao: JournalDao) {
      * Creates an entry for [date]. The entry keeps the current wall-clock time so
      * back-dated entries still read naturally ("9:41 PM").
      */
-    suspend fun create(date: LocalDate, text: String) {
+    suspend fun create(date: LocalDate, text: String, title: String?) {
         val createdAt = LocalDateTime.of(date, LocalTime.now())
             .atZone(ZoneId.systemDefault())
             .toInstant()
             .toEpochMilli()
-        dao.insert(JournalEntry(epochDay = date.toEpochDay(), createdAt = createdAt, text = text))
+        dao.insert(
+            JournalEntry(
+                epochDay = date.toEpochDay(),
+                createdAt = createdAt,
+                text = text,
+                title = title
+            )
+        )
     }
 
-    suspend fun updateText(entry: JournalEntry, text: String) =
-        dao.update(entry.copy(text = text))
+    suspend fun update(entry: JournalEntry, text: String, title: String?) =
+        dao.update(entry.copy(text = text, title = title))
+
+    suspend fun entriesBetween(start: LocalDate, end: LocalDate): List<JournalEntry> =
+        dao.entriesBetween(start.toEpochDay(), end.toEpochDay())
 
     suspend fun delete(entry: JournalEntry) = dao.delete(entry)
 }

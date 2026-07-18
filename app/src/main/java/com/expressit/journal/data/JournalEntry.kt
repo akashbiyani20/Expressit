@@ -20,7 +20,8 @@ data class JournalEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val epochDay: Long,
     val createdAt: Long,
-    val text: String
+    val text: String,
+    val title: String? = null
 ) {
     val date: LocalDate get() = LocalDate.ofEpochDay(epochDay)
     val time: LocalTime

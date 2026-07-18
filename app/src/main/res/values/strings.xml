@@ -4,6 +4,12 @@
     <!-- Home -->
     <string name="today">Today</string>
     <string name="new_entry">New entry</string>
+    <string name="menu">Menu</string>
+    <string name="pick_month">Choose month and year</string>
+    <string name="previous_month">Previous month</string>
+    <string name="next_month">Next month</string>
+    <string name="previous_year">Previous year</string>
+    <string name="next_year">Next year</string>
     <string name="empty_day_title">A quiet page</string>
     <string name="empty_day_body">Nothing written for this day yet.\nTap the button below and just speak.</string>
     <string name="entry_count_one">1 entry</string>
@@ -13,16 +19,40 @@
     <string name="delete_dialog_body">This entry will be removed from your journal. This can\'t be undone.</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
+    <string name="done">Done</string>
+
+    <!-- Export -->
+    <string name="export_entries">Export entries</string>
+    <string name="export_title">Choose the days to export</string>
+    <string name="share_export">Share</string>
+    <string name="export_empty">No entries in that date range.</string>
+
+    <!-- Transcription settings -->
+    <string name="transcription">Transcription</string>
+    <string name="transcription_title">Transcription</string>
+    <string name="transcription_body">ExpressIt can transcribe with an on-device AI model (Whisper) — clearer wording and proper punctuation, fully offline. Download it once and it\'s yours.</string>
+    <string name="download_model">Download AI model (%1$s)</string>
+    <string name="downloading_model">Downloading… %1$d%%</string>
+    <string name="model_ready">AI model ready — transcription runs on this device.</string>
+    <string name="remove_model">Remove</string>
+    <string name="download_failed">The download didn\'t finish. Check your connection and try again.</string>
+    <string name="retry_download">Try again</string>
+    <string name="use_whisper">Use AI model when available</string>
 
     <!-- Entry -->
     <string name="tap_to_speak">Tap to speak</string>
     <string name="listening">Listening…</string>
+    <string name="listening_hint">Speak freely.\nTap stop when you\'re done.</string>
     <string name="tap_to_stop">Tap to stop</string>
+    <string name="transcribing">Turning your words into text…</string>
+    <string name="transcribing_hint">Writing down what you said…</string>
     <string name="transcript_placeholder">Your words will appear here.</string>
+    <string name="title_placeholder">Untitled</string>
+    <string name="regenerate_title">Suggest another title</string>
     <string name="save_entry">Save entry</string>
     <string name="back">Back</string>
     <string name="mic_permission_needed">ExpressIt needs microphone access to hear you. You can grant it in Settings.</string>
     <string name="speech_unavailable">Speech recognition isn\'t available on this device.</string>
-    <string name="speech_error_generic">Couldn\'t hear that. Tap the microphone to try again.</string>
+    <string name="speech_error_generic">Couldn\'t catch that. Tap the microphone to try again.</string>
     <string name="editing_hint">Tap the text to make small edits, or keep speaking to add more.</string>
 </resources>

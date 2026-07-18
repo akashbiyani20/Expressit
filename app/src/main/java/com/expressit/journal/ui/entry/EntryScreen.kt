@@ -40,9 +40,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -74,7 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.expressit.journal.R
-import com.expressit.journal.speech.SpeechRecognizerManager.SpeechError
+import com.expressit.journal.ui.entry.EntryViewModel.CaptureState
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -84,7 +87,11 @@ fun EntryScreen(
     onClose: () -> Unit
 ) {
     val text by viewModel.text.collectAsStateWithLifecycle()
-    val speechState by viewModel.speech.state.collectAsStateWithLifecycle()
+    val title by viewModel.title.collectAsStateWithLifecycle()
+    val captureState by viewModel.captureState.collectAsStateWithLifecycle()
+    val soundLevel by viewModel.soundLevel.collectAsStateWithLifecycle()
+    val partialText by viewModel.partialText.collectAsStateWithLifecycle()
+    val errorKey by viewModel.error.collectAsStateWithLifecycle()
     val saved by viewModel.saved.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
@@ -95,7 +102,7 @@ fun EntryScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         permissionDenied = !granted
-        if (granted) viewModel.toggleListening()
+        if (granted) viewModel.toggleCapture()
     }
 
     LaunchedEffect(saved) {
@@ -103,6 +110,8 @@ fun EntryScreen(
     }
 
     val dateFormatter = remember { DateTimeFormatter.ofPattern("MMMM d", Locale.getDefault()) }
+    val isListening = captureState is CaptureState.Listening
+    val isTranscribing = captureState is CaptureState.Transcribing
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Column(
@@ -132,23 +141,41 @@ fun EntryScreen(
                 )
             }
 
+            // Title (appears once there is something to title)
+            AnimatedVisibility(
+                visible = text.isNotBlank() && !isListening,
+                enter = fadeIn(tween(220)) + expandVertically(),
+                exit = fadeOut(tween(120)) + shrinkVertically()
+            ) {
+                TitleField(
+                    title = title,
+                    onTitleChanged = viewModel::onTitleChanged,
+                    onRegenerate = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        viewModel.regenerateTitle()
+                    },
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp)
+                )
+            }
+
             // Transcript / editor
             TranscriptArea(
                 text = text,
-                partialText = speechState.partialText,
-                isListening = speechState.isListening,
+                partialText = partialText,
+                isListening = isListening,
+                isTranscribing = isTranscribing,
                 onTextChanged = viewModel::onTextChanged,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 28.dp, vertical = 16.dp)
+                    .padding(horizontal = 28.dp, vertical = 12.dp)
             )
 
             // Status / error line
             val errorText = when {
                 permissionDenied -> stringResource(R.string.mic_permission_needed)
-                speechState.error == SpeechError.UNAVAILABLE -> stringResource(R.string.speech_unavailable)
-                speechState.error == SpeechError.GENERIC -> stringResource(R.string.speech_error_generic)
+                errorKey == "unavailable" -> stringResource(R.string.speech_unavailable)
+                errorKey != null -> stringResource(R.string.speech_error_generic)
                 else -> null
             }
             AnimatedVisibility(
@@ -169,18 +196,19 @@ fun EntryScreen(
 
             // Microphone
             MicButton(
-                isListening = speechState.isListening,
-                soundLevel = speechState.soundLevel,
+                captureState = captureState,
+                soundLevel = soundLevel,
                 onTap = {
+                    if (isTranscribing) return@MicButton
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     permissionDenied = false
-                    if (speechState.isListening) {
-                        viewModel.toggleListening()
+                    if (isListening) {
+                        viewModel.toggleCapture()
                     } else {
                         val granted = ContextCompat.checkSelfPermission(
                             context, Manifest.permission.RECORD_AUDIO
                         ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) viewModel.toggleListening()
+                        if (granted) viewModel.toggleCapture()
                         else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
                 },
@@ -188,16 +216,17 @@ fun EntryScreen(
             )
 
             AnimatedContent(
-                targetState = speechState.isListening,
+                targetState = captureState,
                 transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) },
                 label = "micLabel",
                 modifier = Modifier.align(Alignment.CenterHorizontally)
-            ) { listening ->
+            ) { state ->
                 Text(
-                    text = if (listening) {
-                        stringResource(R.string.listening) + "  ·  " + stringResource(R.string.tap_to_stop)
-                    } else {
-                        stringResource(R.string.tap_to_speak)
+                    text = when (state) {
+                        is CaptureState.Listening ->
+                            stringResource(R.string.listening) + "  ·  " + stringResource(R.string.tap_to_stop)
+                        is CaptureState.Transcribing -> stringResource(R.string.transcribing)
+                        else -> stringResource(R.string.tap_to_speak)
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -207,7 +236,7 @@ fun EntryScreen(
 
             // Save
             AnimatedVisibility(
-                visible = text.isNotBlank() && !speechState.isListening,
+                visible = text.isNotBlank() && captureState is CaptureState.Idle,
                 enter = fadeIn(tween(220)) + expandVertically(),
                 exit = fadeOut(tween(120)) + shrinkVertically()
             ) {
@@ -239,10 +268,58 @@ fun EntryScreen(
 }
 
 @Composable
+private fun TitleField(
+    title: String,
+    onTitleChanged: (String) -> Unit,
+    onRegenerate: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BasicTextField(
+                value = title,
+                onValueChange = onTitleChanged,
+                textStyle = MaterialTheme.typography.headlineSmall.copy(
+                    color = MaterialTheme.colorScheme.onBackground
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner ->
+                    Box {
+                        if (title.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.title_placeholder),
+                                style = MaterialTheme.typography.headlineSmall.copy(fontStyle = FontStyle.Italic),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        inner()
+                    }
+                }
+            )
+            IconButton(onClick = onRegenerate) {
+                Icon(
+                    Icons.Rounded.Refresh,
+                    contentDescription = stringResource(R.string.regenerate_title),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+    }
+}
+
+@Composable
 private fun TranscriptArea(
     text: String,
     partialText: String,
     isListening: Boolean,
+    isTranscribing: Boolean,
     onTextChanged: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -256,16 +333,38 @@ private fun TranscriptArea(
     Box(modifier = modifier) {
         when {
             // Live, read-only transcript while listening — the unconfirmed
-            // hypothesis is rendered softer than confirmed words.
+            // hypothesis (system engine only) renders softer than saved words.
             isListening -> {
-                Text(
-                    text = liveTranscript(text, partialText),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(scrollState)
-                )
+                if (text.isBlank() && partialText.isBlank()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = stringResource(R.string.listening_hint),
+                            style = MaterialTheme.typography.headlineSmall.copy(fontStyle = FontStyle.Italic),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    Text(
+                        text = liveTranscript(text, partialText),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                    )
+                }
+            }
+
+            isTranscribing && text.isBlank() -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = stringResource(R.string.transcribing_hint),
+                        style = MaterialTheme.typography.headlineSmall.copy(fontStyle = FontStyle.Italic),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
 
             text.isBlank() -> {
@@ -325,11 +424,14 @@ private fun liveTranscript(text: String, partialText: String): AnnotatedString =
 
 @Composable
 private fun MicButton(
-    isListening: Boolean,
+    captureState: CaptureState,
     soundLevel: Float,
     onTap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isListening = captureState is CaptureState.Listening
+    val isTranscribing = captureState is CaptureState.Transcribing
+
     val infinite = rememberInfiniteTransition(label = "micPulse")
     val pulse by infinite.animateFloat(
         initialValue = 0f,
@@ -383,19 +485,31 @@ private fun MicButton(
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 AnimatedContent(
-                    targetState = isListening,
+                    targetState = when {
+                        isTranscribing -> 2
+                        isListening -> 1
+                        else -> 0
+                    },
                     transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(100)) },
                     label = "micIcon"
-                ) { listening ->
-                    Icon(
-                        imageVector = if (listening) Icons.Rounded.Stop else Icons.Rounded.Mic,
-                        contentDescription = if (listening) {
-                            stringResource(R.string.tap_to_stop)
-                        } else {
-                            stringResource(R.string.tap_to_speak)
-                        },
-                        modifier = Modifier.size(36.dp)
-                    )
+                ) { state ->
+                    when (state) {
+                        2 -> CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 3.dp,
+                            modifier = Modifier.size(30.dp)
+                        )
+                        1 -> Icon(
+                            imageVector = Icons.Rounded.Stop,
+                            contentDescription = stringResource(R.string.tap_to_stop),
+                            modifier = Modifier.size(36.dp)
+                        )
+                        else -> Icon(
+                            imageVector = Icons.Rounded.Mic,
+                            contentDescription = stringResource(R.string.tap_to_speak),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
                 }
             }
         }

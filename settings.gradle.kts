@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ExpressIt"
 include(":app")
+include(":whisper")

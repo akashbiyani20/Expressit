@@ -31,17 +31,26 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,12 +88,28 @@ fun HomeScreen(
     val visibleMonth by viewModel.visibleMonth.collectAsStateWithLifecycle()
     val entries by viewModel.entries.collectAsStateWithLifecycle()
     val daysWithEntries by viewModel.daysWithEntries.collectAsStateWithLifecycle()
+    val preferWhisper by viewModel.preferWhisper.collectAsStateWithLifecycle()
+    val modelDownloadState by viewModel.modelDownloadState.collectAsStateWithLifecycle()
+    val exportResult by viewModel.exportResult.collectAsStateWithLifecycle()
 
     val haptics = LocalHapticFeedback.current
     var entryPendingDelete by remember { mutableStateOf<JournalEntry?>(null) }
+    var showMonthPicker by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
+    var showTranscriptionDialog by remember { mutableStateOf(false) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val exportEmptyMessage = stringResource(R.string.export_empty)
+    LaunchedEffect(exportResult) {
+        if (exportResult == false) {
+            snackbarHostState.showSnackbar(exportEmptyMessage)
+        }
+        if (exportResult != null) viewModel.clearExportResult()
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
@@ -113,7 +138,10 @@ fun HomeScreen(
                 showTodayButton = selectedDate != LocalDate.now(),
                 onPrevious = viewModel::showPreviousMonth,
                 onNext = viewModel::showNextMonth,
-                onToday = viewModel::goToToday
+                onToday = viewModel::goToToday,
+                onTitleClick = { showMonthPicker = true },
+                onExport = { showExportDialog = true },
+                onTranscription = { showTranscriptionDialog = true }
             )
 
             MonthCalendar(
@@ -172,6 +200,38 @@ fun HomeScreen(
             }
         )
     }
+
+    if (showMonthPicker) {
+        MonthYearPickerDialog(
+            initial = visibleMonth,
+            onPick = { month ->
+                showMonthPicker = false
+                viewModel.showMonth(month)
+            },
+            onDismiss = { showMonthPicker = false }
+        )
+    }
+
+    if (showExportDialog) {
+        ExportRangeDialog(
+            onExport = { start, end ->
+                showExportDialog = false
+                viewModel.export(start, end)
+            },
+            onDismiss = { showExportDialog = false }
+        )
+    }
+
+    if (showTranscriptionDialog) {
+        TranscriptionDialog(
+            downloadState = modelDownloadState,
+            preferWhisper = preferWhisper,
+            onDownload = viewModel::downloadModel,
+            onDeleteModel = viewModel::deleteModel,
+            onPreferWhisperChanged = viewModel::setPreferWhisper,
+            onDismiss = { showTranscriptionDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -180,12 +240,17 @@ private fun MonthHeader(
     showTodayButton: Boolean,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
-    onToday: () -> Unit
+    onToday: () -> Unit,
+    onTitleClick: () -> Unit,
+    onExport: () -> Unit,
+    onTranscription: () -> Unit
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 24.dp, end = 12.dp, top = 20.dp, bottom = 12.dp),
+            .padding(start = 24.dp, end = 8.dp, top = 20.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AnimatedContent(
@@ -196,7 +261,14 @@ private fun MonthHeader(
             label = "monthTitle",
             modifier = Modifier.weight(1f)
         ) { current ->
-            Row(verticalAlignment = Alignment.Bottom) {
+            // The title itself is the door to any month or year.
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier
+                    .clip(MaterialTheme.shapes.small)
+                    .clickable(onClick = onTitleClick)
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            ) {
                 Text(
                     text = current.month.getDisplayName(JavaTextStyle.FULL, Locale.getDefault())
                         .replaceFirstChar { it.uppercase() },
@@ -209,6 +281,12 @@ private fun MonthHeader(
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 2.dp)
+                )
+                Icon(
+                    Icons.Rounded.ArrowDropDown,
+                    contentDescription = stringResource(R.string.pick_month),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
         }
@@ -225,16 +303,61 @@ private fun MonthHeader(
         IconButton(onClick = onPrevious) {
             Icon(
                 Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-                contentDescription = "Previous month",
+                contentDescription = stringResource(R.string.previous_month),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         IconButton(onClick = onNext) {
             Icon(
                 Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                contentDescription = "Next month",
+                contentDescription = stringResource(R.string.next_month),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        Box {
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(
+                    Icons.Rounded.MoreVert,
+                    contentDescription = stringResource(R.string.menu),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            DropdownMenu(
+                expanded = menuOpen,
+                onDismissRequest = { menuOpen = false },
+                shape = MaterialTheme.shapes.medium,
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.export_entries)) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Rounded.IosShare,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    onClick = {
+                        menuOpen = false
+                        onExport()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.transcription)) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Rounded.GraphicEq,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    onClick = {
+                        menuOpen = false
+                        onTranscription()
+                    }
+                )
+            }
         }
     }
 }
@@ -430,6 +553,16 @@ private fun EntryCard(
                             .graphicsLayer(alpha = 0.7f)
                     )
                 }
+            }
+            entry.title?.takeIf { it.isNotBlank() }?.let { heading ->
+                Text(
+                    text = heading,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(end = 12.dp, bottom = 4.dp)
+                )
             }
             Text(
                 text = entry.text,

@@ -19,6 +19,12 @@ interface JournalDao {
     )
     fun daysWithEntries(startDay: Long, endDay: Long): Flow<List<Long>>
 
+    @Query(
+        "SELECT * FROM journal_entries WHERE epochDay BETWEEN :startDay AND :endDay " +
+            "ORDER BY epochDay ASC, createdAt ASC"
+    )
+    suspend fun entriesBetween(startDay: Long, endDay: Long): List<JournalEntry>
+
     @Query("SELECT * FROM journal_entries WHERE id = :id")
     suspend fun entryById(id: Long): JournalEntry?
 
